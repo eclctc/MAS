@@ -1,0 +1,100 @@
+# Create the docker container and load the CLI
+docker run -dit --name sno quay.io/ibmmas/cli:<choose your version> bash
+
+# Log in to the container to run commands from the mas cli
+docker exec -it sno bash
+
+# Make directory for masconfig inside of docker container
+ mkdir masconfig
+
+ #List out all folder inside of your container to make sure that your created the directory
+ls -l
+
+ # Exit the docker container so that you can copy the license file into the masconfig folder
+ exit
+
+# You should default back into your SNO folder, but if you end up in your home directory, log into the SNO folder
+cd ~/sno
+
+# This copies the license file out of the sno directory into the masconfig
+docker cp license.dat sno:/mascli/masconfig/license.dat
+
+# Log back into the docker container
+docker exec -it sno bash
+
+# Install LVM operator from the Operator Hub in the Openshift console
+apiVersion: lvm.topolvm.io/v1alpha1
+kind: LVMCluster
+metadata:
+  name: sno-lvmcluster
+  namespace: openshift-storage
+spec:
+  storage:
+    deviceClasses:
+    - name: lvm-storage
+      deviceSelector:
+        paths:
+        - /dev/sdb  
+      thinPoolConfig:
+        name: thin-pool-1
+        sizePercent: 90
+        overprovisionRatio: 10
+
+# For LVM storage in the command line. Make the LVM storage class the default
+oc patch storageclass lvms-lvm-storage -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+# Create Image registry PVC. Replace the storageClassName with the name of your Storageclass.
+oc create -f - <<EOF
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: image-registry-pvc
+  namespace: openshift-image-registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: lvms-lvm-storage
+EOF
+
+
+# Configuring Automatic Resource Reservations with KubeletConfig
+oc create -f - <<EOF
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: kube-config-reservations 
+spec:
+  autoSizingReserved: true
+  machineConfigPoolSelector:
+    matchLabels:
+      custom-kubelet: auto
+EOF
+
+# If you don't want to want to use Automatic Resource Reservations with KubeletConfig. Set the KubeletConfig
+oc create -f - <<EOF
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: kube-config-reservations 
+spec:
+  kubeletConfig:
+    systemReserved:
+      memory: "1536Mi"
+  machineConfigPoolSelector:
+    matchLabels:
+      custom-kubelet: auto
+EOF
+
+
+# Patch the Openshift image registry to use the Operator
+oc patch configs.imageregistry.operator.openshift.io/cluster \
+    --type='json' \
+    --patch='[
+        {"op": "replace", "path": "/spec/managementState", "value": "Managed"},
+        {"op": "replace", "path": "/spec/rolloutStrategy", "value": "Recreate"},
+        {"op": "replace", "path": "/spec/replicas", "value": 1},
+        {"op": "replace", "path": "/spec/storage", "value": {"pvc":{"claim": "image-registry-pvc" }}}
+    ]'
