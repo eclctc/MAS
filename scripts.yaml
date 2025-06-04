@@ -73,6 +73,7 @@ spec:
       custom-kubelet: auto
 EOF
 
+
 # If you don't want to want to use Automatic Resource Reservations with KubeletConfig. Set the KubeletConfig
 oc create -f - <<EOF
 apiVersion: machineconfiguration.openshift.io/v1
@@ -82,10 +83,11 @@ metadata:
 spec:
   kubeletConfig:
     systemReserved:
-      memory: "1536Mi"
+      cpu: 1Gi
+      memory: 2Gi
   machineConfigPoolSelector:
     matchLabels:
-      custom-kubelet: auto
+      pools.operator.machineconfiguration.openshift.io/master: ''
 EOF
 
 
