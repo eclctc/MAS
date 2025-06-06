@@ -74,23 +74,6 @@ spec:
 EOF
 
 
-# If you don't want to want to use Automatic Resource Reservations with KubeletConfig. Set the KubeletConfig
-oc create -f - <<EOF
-apiVersion: machineconfiguration.openshift.io/v1
-kind: KubeletConfig
-metadata:
-  name: kube-config-reservations 
-spec:
-  kubeletConfig:
-    systemReserved:
-      cpu: 1Gi
-      memory: 2Gi
-  machineConfigPoolSelector:
-    matchLabels:
-      pools.operator.machineconfiguration.openshift.io/master: ''
-EOF
-
-
 # Patch the Openshift image registry to use the Operator
 oc patch configs.imageregistry.operator.openshift.io/cluster \
     --type='json' \
