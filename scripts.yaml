@@ -60,20 +60,6 @@ spec:
 EOF
 
 
-# Configuring Automatic Resource Reservations with KubeletConfig
-oc create -f - <<EOF
-apiVersion: machineconfiguration.openshift.io/v1
-kind: KubeletConfig
-metadata:
-  name: kube-config-reservations 
-spec:
-  autoSizingReserved: true
-  machineConfigPoolSelector:
-    matchLabels:
-      custom-kubelet: auto
-EOF
-
-
 # Patch the Openshift image registry to use the Operator
 oc patch configs.imageregistry.operator.openshift.io/cluster \
     --type='json' \
